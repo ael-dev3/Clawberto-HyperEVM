@@ -1,111 +1,87 @@
-# trace-hyperevm-wallet: pre-implementation research
+# Trace HyperEVM Wallet Research Summary
 
 Date: 2026-02-20
 
-## Why this name
+## Goal
 
-- Folder name: `trace-hyperevm-wallet`
-- Rationale: verb-led, short, and directly maps to the user problem ("what was sent to this wallet, by whom, and why").
+Define a reliable read-only workflow to investigate HyperEVM wallet history and determine likely sender/source of received funds.
 
-## Problem to solve
+## Confirmed network constants
 
-Clawberto needs to answer:
-- What transactions hit this HyperEVM wallet?
-- Which transfer delivered the received HYPE?
-- Who sent it (wallet/contract/known label)?
-- Was it likely an airdrop, direct transfer, or contract flow?
+- HyperEVM mainnet chain id: `999`
+- RPC endpoint: `https://rpc.hyperliquid.xyz/evm`
+- RPC sanity check: `eth_chainId` returns `0x3e7` (decimal 999)
 
-## Research findings
+## Data sources evaluated
 
-### 1) HyperEVM explorer options
+### A) Etherscan V2 (via HyperEVM explorer stack)
 
-- Hyperliquid docs list HyperEVM block explorers:
-- `https://hyperevmscan.io`
-- `https://www.hyperscan.com`
-- (source: https://hyperliquid.gitbook.io/hyperliquid-docs/hyperevm/overview/block-explorers)
+Key points from Etherscan docs:
+- Base: `https://api.etherscan.io/v2/api`
+- HyperEVM selector: `chainid=999`
+- Free tier limits:
+- up to 100,000 calls/day
+- up to 5 calls/second
+- historical endpoints are throttled to 2 calls/second
+- API key is required for practical access.
 
-### 2) Hyperevmscan (Etherscan-powered)
+HyperEVM-relevant account actions:
+- `txlist` (normal txs)
+- `txlistinternal` (internal txs)
+- `tokentx` (ERC-20 transfers)
+- `balance`
 
-- UI footer links to Etherscan API docs and plans.
-- Uses Etherscan V2 API model (`chainid=999` for HyperEVM).
-- Verified by live call: `api.etherscan.io/v2/api?...chainid=999...` returns `Missing/Invalid API Key` without key.
-- Sources:
-- https://hyperevmscan.io
+Sources:
 - https://docs.etherscan.io/introduction
 - https://docs.etherscan.io/supported-chains
+- https://docs.etherscan.io/resources/rate-limits
+- https://docs.etherscan.io/resources/common-error-messages
 
-Implication:
-- Good compatibility if API key exists.
-- Not ideal as the only backend for a no-setup skill.
+### B) Hyperscan (Blockscout API v2)
 
-### 3) Hyperscan (Blockscout-powered)
+Key points:
+- Explorer: `https://www.hyperscan.com`
+- API: `https://www.hyperscan.com/api/v2`
+- API docs UI: `https://www.hyperscan.com/api-docs`
+- Keyless access works for core endpoints.
+- Rich wallet history endpoints:
+- normal txs
+- internal txs
+- token transfers
+- coin balance deltas
 
-- Hyperscan identifies as Blockscout explorer.
-- Live REST API v2 endpoints work without API key:
-- `/api/v2/addresses/{address}`
-- `/api/v2/addresses/{address}/transactions`
-- `/api/v2/addresses/{address}/internal-transactions`
-- `/api/v2/addresses/{address}/token-transfers`
-- `/api/v2/addresses/{address}/coin-balance-history`
-- `/api/v2/stats`
-- API docs page exists at `/api-docs`.
-- Sources:
+Sources:
 - https://www.hyperscan.com
 - https://www.hyperscan.com/api-docs
 - https://docs.blockscout.com/devs/apis/rest
-- https://docs.blockscout.com/api-reference/get-address-transactions
-- https://docs.blockscout.com/api-reference/get-address-coin-balance-history
 
-Implication:
-- Best default backend for this skill (no API key friction).
+## Backend decision
 
-## Recommended backend strategy
+- Default source: Hyperscan (keyless, low-friction).
+- Optional source: Etherscan V2 for compatibility and alternate data path when `ETHERSCAN_API_KEY` is configured.
+- Design requirement: normalize both sources into one chat output shape.
 
-- Primary: Hyperscan Blockscout REST v2 (keyless).
-- Optional fallback/secondary: Etherscan V2 (`chainid=999`) when `ETHERSCAN_API_KEY` is provided.
-- Keep response normalization layer so skill output is backend-agnostic.
+## Tracing model used
 
-## v1 skill scope (research-approved, not implemented yet)
+Always evaluate these classes together:
+- Normal transactions
+- Internal transactions
+- Token transfers
 
-- Address-first investigation:
-- `wallet-summary <address>`
-- `incoming <address> [--limit N]`
-- `sent <address> [--limit N]`
-- `token-flows <address> [--limit N]`
-- `balance-delta <address> [--limit N]`
-- Tx-first investigation:
-- `tx-inspect <txHash>`
-- `tx-counterparty <txHash>`
-- Attribution helper:
-- `why-received <address> [--lookback N]`
+Optional reconciliation:
+- Native coin balance deltas for net flow and gas impact.
 
-## Classification heuristics for "what sent this?"
+## Sender attribution policy
 
-- Direct native transfer:
-- `value > 0` and simple transfer pattern (no complex internal cascade).
-- Contract-mediated transfer:
-- Incoming value appears in internal txs or via contract interactions.
-- Token transfer vs native transfer:
-- Use `token-transfers` plus coin balance history to disambiguate.
-- Possible airdrop pattern:
-- Sender appears as known/labeled distributor or contract.
-- Similar small-value transfers across many recipients around same time/block range.
+Attribution output must include:
+- tx hash
+- from and to
+- asset and amount
+- timestamp
+- direction
+- confidence level
 
-## Minimum data needed per finding
-
-- `tx_hash`, `block_number`, `timestamp`
-- `from`, `to`
-- `asset` (`HYPE` native or token symbol/address)
-- `amount` (normalized)
-- direction (`in`/`out`)
-- confidence label for attribution (`high`/`medium`/`low`)
-- explorer links:
-- `https://www.hyperscan.com/tx/{hash}`
-- `https://www.hyperscan.com/address/{address}`
-
-## Implementation notes for next step
-
-- Build a thin API client for Hyperscan first.
-- Support Blockscout keyset pagination via `next_page_params`.
-- Add deterministic command parsing before NL parsing (same pattern used in prior OpenClaw study).
-- Return compact, chat-friendly bullet outputs with explicit uncertainty markers.
+Confidence approach:
+- High: direct non-zero transfer and clear sender path.
+- Medium: sender inferred from contract-mediated flow with coherent evidence.
+- Low: ambiguous internal/event-only traces.
