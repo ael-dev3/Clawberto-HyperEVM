@@ -11,6 +11,10 @@ HyperEVM wallet tracing + execution-planning assistant for transaction history, 
 - Etherscan V2 (`chainid=999`, optional with API key)
 - Reuses the same chat-first command style as the `openclaw/hyperliquid` skill and adds execution planning for HyperEVM.
 
+## Skill Snapshot
+
+![Trace HyperEVM Wallet Skill](assets/HyperEVM.jpg)
+
 ## What this skill helps with
 
 - Check complete wallet history quickly.
@@ -18,6 +22,7 @@ HyperEVM wallet tracing + execution-planning assistant for transaction history, 
 - Inspect a transaction hash and summarize who sent what.
 - Explain likely source of inbound funds (direct transfer vs contract flow vs token distribution).
 - Pull quick Hyperliquid perp quotes as pre-trade context.
+- Read optional Hyperliquid perp exposure for a wallet (open positions, uPnL, ROE, margin usage).
 - Generate a non-custodial transfer execution plan (nonce, gas estimate, fee check, tx template).
 - Keep local address aliases for repeated investigation.
 
@@ -27,11 +32,13 @@ HyperEVM wallet tracing + execution-planning assistant for transaction history, 
 - `hype network`
 - `hype recent --limit 20`
 - `hype quote BTC`
+- `hype positions HL:0x...`
 
 ### Execution planning (non-custodial)
 - `hype transact-help`
 - `hype transfer-plan HL:0xFrom... HL:0xTo... --amount 0.05`
 - `hype transfer-plan "main wallet" HL:0xTo... --amount 0.05`
+- Execution boundary: this skill prepares/validates transactions but does not sign or broadcast.
 
 ### Address history
 - `hype history HL:0x... --limit 50`
@@ -56,6 +63,10 @@ HyperEVM wallet tracing + execution-planning assistant for transaction history, 
 - `hype account default "main wallet"`
 - `hype history "main wallet"`
 
+### Positions note
+- If `positions` looks empty but you expect exposure, query the master/sub-account owner address.
+- Agent/executor wallets can legitimately return no open positions.
+
 ## Environment variables
 
 - `HYPEREVM_RPC_URL` (default `https://rpc.hyperliquid.xyz/evm`)
@@ -72,6 +83,7 @@ HyperEVM wallet tracing + execution-planning assistant for transaction history, 
 ```bash
 node scripts/hyperevm_scan_chat.mjs "hype network"
 node scripts/hyperevm_scan_chat.mjs "hype quote BTC"
+node scripts/hyperevm_scan_chat.mjs "hype positions HL:0x..."
 node scripts/hyperevm_scan_chat.mjs "hype history HL:0x..."
 node scripts/hyperevm_scan_chat.mjs "hype transfer-plan HL:0xFrom... HL:0xTo... --amount 0.01"
 node scripts/hyperevm_scan_chat.mjs "hype tx 0x..."

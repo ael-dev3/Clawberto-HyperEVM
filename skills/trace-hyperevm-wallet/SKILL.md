@@ -1,6 +1,6 @@
 ---
 name: trace-hyperevm-wallet
-description: HyperEVM wallet tracing and execution-planning skill for transaction history, sender attribution, market context, and transaction preparation on HyperEVM mainnet (chain id 999). Use when users need to investigate what was sent to a wallet, obtain trade context, and prepare safe transaction execution steps (nonce/gas/fee/template) without handling private keys. Supports deterministic `hype ...` and `/hype ...` commands plus natural language, with Hyperscan (Blockscout API v2) as default and Etherscan V2 (`chainid=999`) as optional source.
+description: HyperEVM wallet tracing and execution-planning skill for transaction history, sender attribution, market context, optional Hyperliquid perp exposure (positions/uPnL/margin), and transaction preparation on HyperEVM mainnet (chain id 999). Use when users need to investigate what was sent to a wallet, check open perp risk before acting, obtain trade context, and prepare safe transaction execution steps (nonce/gas/fee/template) without handling private keys. Supports deterministic `hype ...` and `/hype ...` commands plus natural language, with Hyperscan (Blockscout API v2) as default and Etherscan V2 (`chainid=999`) as optional source.
 ---
 
 # Trace HyperEVM Wallet
@@ -39,6 +39,7 @@ Network:
 - `network`: verify RPC chain id and latest block
 - `recent [--limit N]`: recent HyperEVM txs (global feed)
 - `quote <coin>`: quick Hyperliquid perp context for execution planning
+- `positions <HL:0x..|0x..|label>`: optional Hyperliquid perp exposure snapshot (uPnL/ROE/margin)
 
 Execution planning (non-custodial):
 - `transact-help`: execution checklist and safety flow
@@ -75,6 +76,7 @@ Execution boundary:
 - This skill prepares and validates transaction plans.
 - This skill does not store private keys.
 - Signing and broadcast must happen in external wallet/custody tooling.
+- Treat returned tx payloads as unsigned templates; require a separate execution layer to broadcast.
 
 ## Source selection guidance
 
@@ -99,6 +101,7 @@ Use Etherscan V2 when:
 
 - Keep responses short and evidence-first.
 - Include tx hash, from, to, value/token amount, timestamp, and direction.
+- For `positions`, include margin summary + open position risk fields (entry, liq, uPnL, ROE, leverage).
 - Add explicit uncertainty markers when attribution is not definitive.
 - Avoid implying ownership/identity without a labeled source.
 
@@ -107,6 +110,7 @@ Use Etherscan V2 when:
 ```bash
 node skills/trace-hyperevm-wallet/scripts/hyperevm_scan_chat.mjs "hype network"
 node skills/trace-hyperevm-wallet/scripts/hyperevm_scan_chat.mjs "hype quote BTC"
+node skills/trace-hyperevm-wallet/scripts/hyperevm_scan_chat.mjs "hype positions HL:0x..."
 node skills/trace-hyperevm-wallet/scripts/hyperevm_scan_chat.mjs "hype history HL:0x..."
 node skills/trace-hyperevm-wallet/scripts/hyperevm_scan_chat.mjs "hype transfer-plan HL:0xFrom... HL:0xTo... --amount 0.01"
 node skills/trace-hyperevm-wallet/scripts/hyperevm_scan_chat.mjs "hype tx 0x..."

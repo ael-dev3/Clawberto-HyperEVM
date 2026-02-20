@@ -86,9 +86,17 @@ Confidence approach:
 - Medium: sender inferred from contract-mediated flow with coherent evidence.
 - Low: ambiguous internal/event-only traces.
 
+## Cross-skill patterns adopted
+
+From OpenClaw `cryptowallet`, `onchain`, and `defi` skill patterns:
+- Keep execution strictly non-custodial and return unsigned tx plans only.
+- Require pre-execution risk checks (history + exposure) before sending transactions.
+- Add explicit account-context warning for positions (master/sub-account owner vs agent wallet).
+
 ## Implementation status
 
 - Added deterministic quote support from Hyperliquid Info endpoint (`hype quote <coin>`).
+- Added optional position and margin visibility (`hype positions <wallet|label>`) via Hyperliquid `clearinghouseState`.
 - Added execution-planning commands:
 - `hype transact-help`
 - `hype transfer-plan <from> <to> --amount <decimal>`

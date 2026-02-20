@@ -18,6 +18,7 @@ import {
   rpcGetTransactionByHash,
   rpcGetTransactionReceipt,
   hyperliquidMetaAndAssetCtxs,
+  hyperliquidClearinghouseState,
   hyperscanTransaction,
   hyperscanRecentTransactions,
   hyperscanAddressTransactions,
@@ -163,6 +164,7 @@ function guessIntentFromNL(text) {
   if (t.includes("chain id") || t.includes("rpc") || t.includes("network")) return { cmd: "network" };
   if (t.includes("recent tx") || t.includes("latest tx")) return { cmd: "recent" };
   if (t.includes("quote") || t.includes("price")) return { cmd: "quote" };
+  if (/\b(position|positions|pnl|p\/l|margin)\b/.test(t)) return { cmd: "positions" };
   if (/\b(transact|execution|execute|swap|send)\b/.test(t) || /\btrade(s|d|ing)?\b/.test(t)) return { cmd: "transact-help" };
   if (t.includes("transfer plan") || t.includes("send plan")) return { cmd: "transfer-plan" };
   if (t.includes("all transactions") || t.includes("full history") || t.includes("check all")) return { cmd: "all" };
@@ -300,6 +302,112 @@ async function getPerpsTable() {
   const [meta, ctxs] = await hyperliquidMetaAndAssetCtxs({ dex: "" });
   const universe = meta?.universe ?? [];
   return universe.map((u, i) => ({ u, c: ctxs?.[i] ?? {} }));
+}
+
+function fmtNum(x, { dp = 2 } = {}) {
+  const n = Number(x);
+  if (!Number.isFinite(n)) return String(x ?? "n/a");
+  return n.toLocaleString(undefined, { maximumFractionDigits: dp, minimumFractionDigits: 0 });
+}
+
+function fmtSignedNum(x, { dp = 2 } = {}) {
+  const n = Number(x);
+  if (!Number.isFinite(n)) return String(x ?? "n/a");
+  const sign = n > 0 ? "+" : "";
+  return `${sign}${n.toLocaleString(undefined, { maximumFractionDigits: dp, minimumFractionDigits: 0 })}`;
+}
+
+function liqDistancePct({ side, markPx, liquidationPx }) {
+  const mark = Number(markPx);
+  const liq = Number(liquidationPx);
+  if (!Number.isFinite(mark) || !Number.isFinite(liq) || mark === 0) return null;
+  if (side === "long") return ((mark - liq) / mark) * 100;
+  if (side === "short") return ((liq - mark) / mark) * 100;
+  return null;
+}
+
+function formatPositions(address, state, markByCoin = new Map()) {
+  const lines = [];
+  const ms = state?.marginSummary;
+  const cms = state?.crossMarginSummary;
+  const positions = Array.isArray(state?.assetPositions) ? state.assetPositions : [];
+
+  lines.push(`Hyperliquid perp positions (${shortAddress(address)})`);
+
+  if (ms) {
+    const accountValue = Number(ms.accountValue);
+    const marginUsed = Number(ms.totalMarginUsed);
+    const free = Number.isFinite(accountValue) && Number.isFinite(marginUsed) ? accountValue - marginUsed : null;
+    lines.push(
+      `- margin acct: value ${fmtNum(ms.accountValue, { dp: 2 })} | notional ${fmtNum(ms.totalNtlPos, { dp: 2 })} | margin used ${fmtNum(ms.totalMarginUsed, { dp: 2 })}${free == null ? "" : ` | free ${fmtNum(free, { dp: 2 })}`}`
+    );
+  }
+
+  if (cms) {
+    lines.push(`- cross acct: value ${fmtNum(cms.accountValue, { dp: 2 })} | notional ${fmtNum(cms.totalNtlPos, { dp: 2 })}`);
+  }
+
+  if (state?.withdrawable != null) {
+    lines.push(`- withdrawable: ${fmtNum(state.withdrawable, { dp: 2 })}`);
+  }
+
+  if (!positions.length) {
+    lines.push("- no open perp positions");
+    lines.push("- note: if you expected positions, query the master/sub-account owner address (not an agent wallet)");
+    return lines.join("\n");
+  }
+
+  lines.push("- open positions:");
+  for (const item of positions) {
+    const p = item?.position;
+    if (!p) continue;
+
+    const szi = Number(p.szi);
+    const side = Number.isFinite(szi) ? (szi > 0 ? "long" : szi < 0 ? "short" : "flat") : "unknown";
+    const absSize = Number.isFinite(szi) ? Math.abs(szi) : p.szi;
+    const mark = markByCoin.get(p.coin);
+    const liqDist = liqDistancePct({ side, markPx: mark, liquidationPx: p.liquidationPx });
+
+    const headerBits = [
+      `${p.coin} ${side}`,
+      `sz ${absSize}`,
+      `mark ${mark == null ? "n/a" : fmtPx(mark)}`,
+      `entry ${p.entryPx == null ? "n/a" : fmtPx(p.entryPx)}`,
+      `liq ${p.liquidationPx == null ? "n/a" : fmtPx(p.liquidationPx)}`,
+      liqDist == null ? null : `liq dist ${fmtPct(liqDist)}`,
+    ].filter(Boolean);
+
+    const pnlBits = [
+      `uPnL ${fmtSignedNum(p.unrealizedPnl, { dp: 2 })}`,
+      p.returnOnEquity == null ? null : `ROE ${fmtPct(Number(p.returnOnEquity) * 100)}`,
+      p.positionValue == null ? null : `pos ${fmtNum(p.positionValue, { dp: 2 })}`,
+    ].filter(Boolean);
+
+    lines.push(`  - ${headerBits.join(" | ")}`);
+    lines.push(`    - ${pnlBits.join(" | ")}`);
+
+    if (p.leverage) {
+      lines.push(
+        `    - lev: ${p.leverage.type} ${p.leverage.value}x | marginUsed ${fmtNum(p.marginUsed, { dp: 2 })}${p.cumFunding?.sinceOpen == null ? "" : ` | funding since open ${fmtNum(p.cumFunding.sinceOpen, { dp: 4 })}`}`
+      );
+    }
+  }
+
+  return lines.join("\n");
+}
+
+async function cmdPositions({ address }) {
+  const statePromise = hyperliquidClearinghouseState({ user: address, dex: "" });
+  const marksPromise = getPerpsTable()
+    .then((rows) => {
+      const out = new Map();
+      for (const row of rows) out.set(row.u?.name, row.c?.markPx);
+      return out;
+    })
+    .catch(() => new Map());
+
+  const [state, markByCoin] = await Promise.all([statePromise, marksPromise]);
+  return formatPositions(address, state, markByCoin);
 }
 
 async function cmdQuote({ coin = "BTC" } = {}) {
@@ -666,6 +774,7 @@ function usage() {
     "  network",
     "  recent [--limit N]",
     "  quote <coin>",
+    "  positions <address|label>",
     "  transact-help",
     "  transfer-plan <from|label> <to> --amount <decimal>",
     "  history <address|label> [--limit N] [--source auto|hyperscan|etherscan]",
@@ -695,6 +804,10 @@ async function runDeterministic(pref) {
   if (cmd === "network") return cmdNetwork();
   if (cmd === "recent") return cmdRecent({ limit });
   if (cmd === "quote") return cmdQuote({ coin: args._[1] ?? "BTC" });
+  if (cmd === "positions") {
+    const address = await resolveAddressInput(ref);
+    return cmdPositions({ address });
+  }
   if (cmd === "transact-help") return cmdTransactHelp();
   if (cmd === "account") return cmdAccount(args);
 
@@ -746,6 +859,9 @@ async function runNL(raw) {
 
   const addr = extractAddress(raw);
   const hash = extractTxHash(raw);
+  const labelGuess = addr
+    ? ""
+    : (raw.match(/\b(?:for|of)\s+(.+)$/i)?.[1] ?? "").trim();
 
   if (cmd === "tx") return cmdTx({ hash });
   if (cmd === "transfer-plan") {
@@ -757,9 +873,10 @@ async function runNL(raw) {
     return cmdTransferPlan({ fromRef, toAddress, amount });
   }
 
-  const resolved = await resolveAccountRef(addr || "");
+  const resolved = await resolveAccountRef(addr || labelGuess || "");
   const address = resolved.address || (await resolveAddressInput(""));
 
+  if (cmd === "positions") return cmdPositions({ address });
   if (cmd === "incoming") return cmdHistory({ address, limit: 25, source: "auto", mode: "incoming" });
   if (cmd === "outgoing") return cmdHistory({ address, limit: 25, source: "auto", mode: "outgoing" });
   if (cmd === "internal") return cmdInternal({ address, limit: 25, source: "auto" });

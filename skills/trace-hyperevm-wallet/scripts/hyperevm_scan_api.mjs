@@ -172,6 +172,11 @@ export async function hyperliquidMetaAndAssetCtxs({ dex = "" } = {}) {
   return hyperliquidInfo({ type: "metaAndAssetCtxs", dex });
 }
 
+export async function hyperliquidClearinghouseState({ user, dex = "" } = {}) {
+  if (!user) throw new Error("hyperliquidClearinghouseState: user is required");
+  return hyperliquidInfo({ type: "clearinghouseState", user: assertAddress(user), dex });
+}
+
 // ------------------------
 // Hyperscan (Blockscout API v2)
 // ------------------------

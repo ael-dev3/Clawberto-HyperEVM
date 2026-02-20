@@ -20,6 +20,7 @@ This runbook is the execution layer paired with wallet tracing.
 3. Inspect wallet risk/history:
 - `hype all <wallet> --limit 25`
 - `hype explain-inflow <wallet> --lookback 50`
+- `hype positions <wallet>` to capture open perp exposure, uPnL, ROE, and margin usage.
 
 4. Build transfer execution plan:
 - `hype transfer-plan <from> <to> --amount <decimal>`
