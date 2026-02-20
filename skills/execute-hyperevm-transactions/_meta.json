@@ -1,0 +1,11 @@
+{
+  "owner": "ael-dev3",
+  "slug": "execute-hyperevm-transactions",
+  "displayName": "Execute HyperEVM Transactions",
+  "latest": {
+    "version": "1.0.0",
+    "publishedAt": 1771589704423,
+    "commit": "https://github.com/ael-dev3/Clawberto-HyperEVM"
+  },
+  "history": []
+}
