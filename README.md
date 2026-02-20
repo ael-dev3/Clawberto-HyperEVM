@@ -13,6 +13,7 @@ HyperEVM transaction tracing and execution-planning skills for OpenClaw-style wo
 
 - Full wallet history on HyperEVM (normal, internal, token transfers).
 - Transaction inspection and sender attribution support.
+- Full-address/full-hash output defaults to prevent truncation mistakes.
 - Network constants: Chain ID `999`, RPC `https://rpc.hyperliquid.xyz/evm`.
 - Non-custodial transaction planning (`transfer-plan`) with nonce/gas/fee checks.
 - Optional Hyperliquid perp context and exposure checks (`quote`, `positions`).

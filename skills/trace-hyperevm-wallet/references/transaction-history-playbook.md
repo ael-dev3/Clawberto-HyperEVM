@@ -39,9 +39,9 @@ Build a bounded-confidence conclusion:
 - Possible distribution/airdrop: token/native inflow from contract/distributor pattern.
 
 Include:
-- tx hash
-- sender address
-- receiver address
+- full tx hash (66 chars)
+- full sender address
+- full receiver address
 - asset and amount
 - timestamp
 - confidence label (`high`, `medium`, `low`)

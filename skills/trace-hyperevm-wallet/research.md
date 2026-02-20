@@ -97,6 +97,9 @@ From OpenClaw `cryptowallet`, `onchain`, and `defi` skill patterns:
 
 - Added deterministic quote support from Hyperliquid Info endpoint (`hype quote <coin>`).
 - Added optional position and margin visibility (`hype positions <wallet|label>`) via Hyperliquid `clearinghouseState`.
+- Hardened transaction output safety:
+- full addresses and full tx hashes by default
+- explicit truncated-hash rejection (`hype tx` requires complete hash)
 - Added execution-planning commands:
 - `hype transact-help`
 - `hype transfer-plan <from> <to> --amount <decimal>`

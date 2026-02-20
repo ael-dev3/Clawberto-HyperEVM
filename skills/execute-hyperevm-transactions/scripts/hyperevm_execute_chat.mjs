@@ -14,8 +14,6 @@ import {
   waitForReceipt,
   receiptStatus,
   formatUnits,
-  shortAddress,
-  shortHash,
   txLink,
 } from "./hyperevm_execute_api.mjs";
 
@@ -62,17 +60,8 @@ function parseArgs(tokens) {
   return args;
 }
 
-function fmtBool(v) {
-  return v ? "yes" : "no";
-}
-
 function extractAddress(text) {
   return extractEvmAddress(text);
-}
-
-function extractSignedTx(text) {
-  const m = String(text ?? "").match(/0x[0-9a-fA-F]{64,}/);
-  return m ? m[0] : null;
 }
 
 function extractFromToByKeywords(text) {
@@ -141,6 +130,7 @@ function usage() {
     "Safety model:",
     "  - dry-run by default (no broadcast)",
     "  - live send requires both: --broadcast and --yes SEND",
+    "  - addresses and tx hashes are printed in full (no truncation)",
     "  - private key is read only from env var (default: HYPEREVM_EXEC_PRIVATE_KEY)",
   ].join("\n");
 }
@@ -233,7 +223,7 @@ async function cmdSendNative({
     throw new Error(`Signer mismatch: private key resolves to ${signerAddress}, but from=${pre.fromAddress}`);
   }
 
-  lines.push(`- signer: ${shortAddress(signerAddress)} (matches from)`);
+  lines.push(`- signer: ${signerAddress} (matches from)`);
   lines.push("- broadcasting: yes");
 
   const sent = await sendNativeWithCast({

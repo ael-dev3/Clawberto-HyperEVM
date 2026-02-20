@@ -101,6 +101,8 @@ Use Etherscan V2 when:
 
 - Keep responses short and evidence-first.
 - Include tx hash, from, to, value/token amount, timestamp, and direction.
+- Output full addresses and full 66-char tx hashes by default for all transaction/history commands.
+- Reject truncated tx hashes with explicit error guidance; do not infer missing characters.
 - For `positions`, include margin summary + open position risk fields (entry, liq, uPnL, ROE, leverage).
 - Add explicit uncertainty markers when attribution is not definitive.
 - Avoid implying ownership/identity without a labeled source.

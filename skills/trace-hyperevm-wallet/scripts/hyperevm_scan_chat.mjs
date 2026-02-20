@@ -39,8 +39,6 @@ import {
   fmtPx,
   pctChange,
   fmtPct,
-  shortAddress,
-  shortHash,
   txLink,
 } from "./hyperevm_scan_api.mjs";
 
@@ -115,12 +113,28 @@ function fmtTs(ts) {
   return String(ts).replace(/\.\d+Z$/, "Z");
 }
 
+function renderAddress(addr) {
+  return normalizeAddress(addr) || String(addr ?? "n/a");
+}
+
+function renderHash(hash) {
+  return normalizeTxHash(hash) || String(hash ?? "n/a");
+}
+
+function truncatedHashCandidate(value) {
+  const raw = String(value ?? "").trim();
+  if (!/^0x[a-fA-F0-9]+$/.test(raw)) return null;
+  if (raw.length >= 66) return null;
+  if (raw.length < 10) return null;
+  return raw;
+}
+
 function formatNormalLine(item, focusAddress) {
   const dir = toDirection({ from: item.from, to: item.to, address: focusAddress });
   const value = formatUnits(item.valueWei, 18, { precision: 6 });
   const status = item.status && item.status !== "ok" ? ` | ${item.status}` : "";
   const method = item.method ? ` | ${String(item.method).slice(0, 36)}` : "";
-  return `- [${dir}] ${fmtTs(item.timestamp)} | ${value} HYPE | ${shortAddress(item.from)} -> ${shortAddress(item.to)} | ${shortHash(item.hash)}${status}${method}`;
+  return `- [${dir}] ${fmtTs(item.timestamp)} | ${value} HYPE | ${renderAddress(item.from)} -> ${renderAddress(item.to)} | ${renderHash(item.hash)}${status}${method}`;
 }
 
 function formatInternalLine(item, focusAddress) {
@@ -128,7 +142,7 @@ function formatInternalLine(item, focusAddress) {
   const value = formatUnits(item.valueWei, 18, { precision: 6 });
   const status = item.status && item.status !== "ok" ? ` | ${item.status}` : "";
   const method = item.method ? ` | ${String(item.method).slice(0, 24)}` : "";
-  return `- [${dir}] ${fmtTs(item.timestamp)} | ${value} HYPE | ${shortAddress(item.from)} -> ${shortAddress(item.to)} | ${shortHash(item.hash)}${status}${method}`;
+  return `- [${dir}] ${fmtTs(item.timestamp)} | ${value} HYPE | ${renderAddress(item.from)} -> ${renderAddress(item.to)} | ${renderHash(item.hash)}${status}${method}`;
 }
 
 function formatTokenAmount(raw, decimals) {
@@ -139,7 +153,7 @@ function formatTokenLine(item, focusAddress) {
   const dir = toDirection({ from: item.from, to: item.to, address: focusAddress });
   const amt = formatTokenAmount(item.tokenValueRaw, item.tokenDecimals);
   const sym = item.tokenSymbol || "TOKEN";
-  return `- [${dir}] ${fmtTs(item.timestamp)} | ${amt} ${sym} | ${shortAddress(item.from)} -> ${shortAddress(item.to)} | ${shortHash(item.hash)}`;
+  return `- [${dir}] ${fmtTs(item.timestamp)} | ${amt} ${sym} | ${renderAddress(item.from)} -> ${renderAddress(item.to)} | ${renderHash(item.hash)}`;
 }
 
 function extractAddress(text) {
@@ -293,7 +307,7 @@ async function cmdRecent({ limit = 20 } = {}) {
   lines.push(`HyperEVM recent txs (source=hyperscan, count=${rows.length})`);
   for (const r of rows) {
     const n = normalizeNormalTx(r, { source: "hyperscan" });
-    lines.push(`- ${fmtTs(n.timestamp)} | ${shortAddress(n.from)} -> ${shortAddress(n.to)} | ${shortHash(n.hash)} | ${formatUnits(n.valueWei, 18, { precision: 6 })} HYPE`);
+    lines.push(`- ${fmtTs(n.timestamp)} | ${renderAddress(n.from)} -> ${renderAddress(n.to)} | ${renderHash(n.hash)} | ${formatUnits(n.valueWei, 18, { precision: 6 })} HYPE`);
   }
   return lines.join("\n");
 }
@@ -332,7 +346,7 @@ function formatPositions(address, state, markByCoin = new Map()) {
   const cms = state?.crossMarginSummary;
   const positions = Array.isArray(state?.assetPositions) ? state.assetPositions : [];
 
-  lines.push(`Hyperliquid perp positions (${shortAddress(address)})`);
+  lines.push(`Hyperliquid perp positions (${renderAddress(address)})`);
 
   if (ms) {
     const accountValue = Number(ms.accountValue);
@@ -533,7 +547,7 @@ async function cmdHistory({ address, limit = 50, source = "auto", mode = "all" }
   if (mode === "outgoing") rows = rows.filter((x) => toDirection({ from: x.from, to: x.to, address }) === "OUT");
 
   const lines = [];
-  lines.push(`HyperEVM ${mode === "all" ? "history" : mode} (${shortAddress(address)})`);
+  lines.push(`HyperEVM ${mode === "all" ? "history" : mode} (${renderAddress(address)})`);
   lines.push(`- source: ${used}`);
   if (!rows.length) {
     lines.push("- none");
@@ -546,7 +560,7 @@ async function cmdHistory({ address, limit = 50, source = "auto", mode = "all" }
 async function cmdInternal({ address, limit = 50, source = "auto" }) {
   const { source: used, items } = await fetchInternalBySource(address, { source, limit });
   const lines = [];
-  lines.push(`HyperEVM internal txs (${shortAddress(address)})`);
+  lines.push(`HyperEVM internal txs (${renderAddress(address)})`);
   lines.push(`- source: ${used}`);
   if (!items.length) {
     lines.push("- none");
@@ -559,7 +573,7 @@ async function cmdInternal({ address, limit = 50, source = "auto" }) {
 async function cmdTokens({ address, limit = 50, source = "auto" }) {
   const { source: used, items } = await fetchTokenBySource(address, { source, limit });
   const lines = [];
-  lines.push(`HyperEVM token transfers (${shortAddress(address)})`);
+  lines.push(`HyperEVM token transfers (${renderAddress(address)})`);
   lines.push(`- source: ${used}`);
   if (!items.length) {
     lines.push("- none");
@@ -586,7 +600,7 @@ async function cmdAll({ address, limit = 25, source = "auto" }) {
   }
 
   const lines = [];
-  lines.push(`HyperEVM all activity (${shortAddress(address)})`);
+  lines.push(`HyperEVM all activity (${renderAddress(address)})`);
   lines.push(`- source(normal/internal/tokens): ${normal.source}/${internal.source}/${token.source}`);
   lines.push(`- normal txs: ${normal.items.length}`);
   lines.push(`- internal txs: ${internal.items.length}`);
@@ -616,7 +630,12 @@ function parseHexWei(hexWei) {
 }
 
 async function cmdTx({ hash }) {
-  const txHash = assertTxHash(hash);
+  const rawHash = String(hash ?? "").trim();
+  const truncated = truncatedHashCandidate(rawHash);
+  if (truncated) {
+    throw new Error(`Truncated tx hash provided (${truncated}). Use the full 66-char tx hash from history output.`);
+  }
+  const txHash = assertTxHash(rawHash);
 
   const [scanTx, rpcTx, receipt] = await Promise.all([
     hyperscanTransaction(txHash).catch(() => null),
@@ -625,7 +644,8 @@ async function cmdTx({ hash }) {
   ]);
 
   const lines = [];
-  lines.push(`HyperEVM tx inspection (${shortHash(txHash)})`);
+  lines.push("HyperEVM tx inspection");
+  lines.push(`- hash: ${txHash}`);
   lines.push(`- tx link: ${txLink(txHash)}`);
 
   if (scanTx) {
@@ -671,7 +691,7 @@ async function cmdExplainInflow({ address, lookback = 50, source = "auto" }) {
   const incomingInternal = internal.items.filter((x) => toDirection({ from: x.from, to: x.to, address }) === "IN");
 
   const lines = [];
-  lines.push(`HyperEVM inflow analysis (${shortAddress(address)})`);
+  lines.push(`HyperEVM inflow analysis (${renderAddress(address)})`);
   lines.push(`- lookback: ${lookback}`);
   lines.push(`- incoming normal txs: ${incomingNormal.length}`);
   lines.push(`- incoming internal txs: ${incomingInternal.length}`);
@@ -747,7 +767,7 @@ async function cmdAccount(args) {
   if (sub === "add") {
     if (!label || !addr) throw new Error('Usage: hype account add "main wallet" HL:0x... [--default]');
     await setAccountAlias({ label, address: addr, makeDefault: Boolean(args.default) });
-    return `Saved ${shortAddress(addr)} as "${label}"${args.default ? " (default)" : ""}`;
+    return `Saved ${renderAddress(addr)} as "${label}"${args.default ? " (default)" : ""}`;
   }
 
   if (sub === "remove" || sub === "rm" || sub === "delete" || sub === "del") {
@@ -787,6 +807,10 @@ function usage() {
     "  explain-inflow <address|label> [--lookback N] [--source ...]",
     '  account add "main wallet" HL:0x... [--default]',
     "  account list|remove|default ...",
+    "",
+    "Notes:",
+    "  - transaction/history outputs include full addresses and full tx hashes by default",
+    "  - never reconstruct addresses from shortened text",
   ].join("\n");
 }
 
@@ -845,7 +869,7 @@ async function runNL(raw) {
     const label = m ? m[1].trim() : null;
     if (!addr || !label) throw new Error('Usage: "store this address HL:0x... as main wallet"');
     await setAccountAlias({ label, address: addr });
-    return `Saved ${shortAddress(addr)} as "${label}"`;
+    return `Saved ${renderAddress(addr)} as "${label}"`;
   }
 
   if (cmd === "account-list") {

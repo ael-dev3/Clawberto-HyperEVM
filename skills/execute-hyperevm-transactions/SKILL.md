@@ -34,6 +34,7 @@ Execution boundary:
 - Live send requires both flags:
 - `--broadcast`
 - `--yes SEND`
+- Print full sender/recipient addresses and full tx hashes in execution output.
 - Sender validation enforced:
 - private key must derive to the same `from` address.
 - Broadcast blocked on:
