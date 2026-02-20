@@ -44,6 +44,7 @@ Network:
 Execution planning (non-custodial):
 - `transact-help`: execution checklist and safety flow
 - `transfer-plan <from|label> <to> --amount <decimal>`: nonce/gas/fee checks + unsigned tx template + local signing command hints
+- `transfer-plan` enforces `amount > 0`.
 
 Address history:
 - `history <HL:0x..|0x..|label> [--limit N] [--source hyperscan|etherscan|auto]`

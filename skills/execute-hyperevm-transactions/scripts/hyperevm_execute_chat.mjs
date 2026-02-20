@@ -182,6 +182,9 @@ async function cmdSendNative({
     amountDecimal: amount,
     rpcUrl: DEFAULT_RPC_URL,
   });
+  if (pre.valueWei <= 0n) {
+    throw new Error("Amount must be greater than zero.");
+  }
 
   const lines = [];
   lines.push("HyperEVM live execution: native transfer");
@@ -331,6 +334,9 @@ async function runNL(raw) {
 
     const fromRef = directional?.fromRef || (addrs.length >= 2 ? addrs[0] : "");
     const toAddress = directional?.toAddress || (addrs.length >= 2 ? addrs[1] : addrs[0] || "");
+    if (!fromRef || !toAddress || !amount) {
+      throw new Error("Ambiguous NL send request. Use deterministic command: hexec send-native <from> <to> --amount <decimal>");
+    }
     return cmdSendNative({
       fromRef,
       toAddress,

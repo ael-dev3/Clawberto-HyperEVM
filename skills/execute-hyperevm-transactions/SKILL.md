@@ -35,6 +35,9 @@ Execution boundary:
 - `--broadcast`
 - `--yes SEND`
 - Print full sender/recipient addresses and full tx hashes in execution output.
+- Enforce `amount > 0` for send flow.
+- Reject suspiciously short raw signed payloads before broadcast.
+- Reject ambiguous natural-language send requests; require deterministic command syntax.
 - Sender validation enforced:
 - private key must derive to the same `from` address.
 - Broadcast blocked on:

@@ -163,6 +163,7 @@ export async function rpcEstimateGas(tx, opts = {}) {
 export async function rpcSendRawTransaction(signedTx, opts = {}) {
   const raw = String(signedTx ?? "").trim();
   if (!/^0x[0-9a-fA-F]+$/.test(raw)) throw new Error("Invalid signed tx payload. Expected 0x-prefixed hex.");
+  if (raw.length < 120) throw new Error("Signed tx payload is too short. Provide the complete raw signed transaction.");
   return rpcCall("eth_sendRawTransaction", [raw], opts);
 }
 

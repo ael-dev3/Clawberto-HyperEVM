@@ -497,6 +497,7 @@ async function cmdTransferPlan({ fromRef, toAddress, amount }) {
 
   if (amount == null) throw new Error('Usage: hype transfer-plan <from> <to> --amount 0.01');
   const valueWei = parseDecimalToUnits(amount, 18);
+  if (valueWei <= 0n) throw new Error("Amount must be greater than zero.");
   const valueHex = toHexQuantity(valueWei);
 
   const [balanceHex, nonceHex, gasPriceHex, estimatedGasHex] = await Promise.all([

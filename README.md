@@ -28,3 +28,12 @@ node skills/trace-hyperevm-wallet/scripts/hyperevm_scan_chat.mjs "hype transfer-
 node skills/execute-hyperevm-transactions/scripts/hyperevm_execute_chat.mjs "hexec health"
 node skills/execute-hyperevm-transactions/scripts/hyperevm_execute_chat.mjs "hexec send-native HL:0xFrom... HL:0xTo... --amount 0.01"
 ```
+
+## Simulation Tests
+
+```bash
+node tests/hyperevm_simulation_suite.mjs
+node tests/hyperevm_simulation_suite.mjs --scenario alt
+```
+
+The suite runs 10 deterministic simulation checks and reports a precision score (`X/10`).

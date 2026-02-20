@@ -3,8 +3,8 @@
   "slug": "trace-hyperevm-wallet",
   "displayName": "Trace HyperEVM Wallet",
   "latest": {
-    "version": "1.3.0",
-    "publishedAt": 1771590971130,
+    "version": "1.4.0",
+    "publishedAt": 1771591607775,
     "commit": "https://github.com/ael-dev3/Clawberto-HyperEVM"
   },
   "history": []
