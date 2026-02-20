@@ -2,8 +2,6 @@
 
 HyperEVM transaction tracing and execution-planning skills for OpenClaw-style workflows.
 
-![HyperEVM Skill Overview](HyperEVM.jpg)
-
 ## Skills
 
 - `skills/trace-hyperevm-wallet`: tracing, attribution, quote context, and non-custodial execution planning. Docs: `skills/trace-hyperevm-wallet/SKILL.md`
