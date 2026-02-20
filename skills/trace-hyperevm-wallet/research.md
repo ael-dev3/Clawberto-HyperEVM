@@ -85,3 +85,11 @@ Confidence approach:
 - High: direct non-zero transfer and clear sender path.
 - Medium: sender inferred from contract-mediated flow with coherent evidence.
 - Low: ambiguous internal/event-only traces.
+
+## Implementation status
+
+- Added deterministic quote support from Hyperliquid Info endpoint (`hype quote <coin>`).
+- Added execution-planning commands:
+- `hype transact-help`
+- `hype transfer-plan <from> <to> --amount <decimal>`
+- Added execution runbook: `references/hyperevm-transaction-execution.md`.

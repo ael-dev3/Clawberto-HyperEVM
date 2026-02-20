@@ -6,6 +6,7 @@ export const DEFAULT_RPC_URL = process.env.HYPEREVM_RPC_URL || "https://rpc.hype
 export const DEFAULT_TIMEOUT_MS = Number(process.env.HYPEREVM_TIMEOUT_MS || 12_000);
 export const DEFAULT_HYPERSCAN_API_URL = process.env.HYPERSCAN_API_URL || "https://www.hyperscan.com/api/v2";
 export const DEFAULT_ETHERSCAN_API_URL = process.env.ETHERSCAN_API_URL || "https://api.etherscan.io/v2/api";
+export const DEFAULT_HYPERLIQUID_INFO_URL = process.env.HYPERLIQUID_INFO_URL || "https://api.hyperliquid.xyz/info";
 
 function withTimeout(ms) {
   const controller = new AbortController();
@@ -136,6 +137,39 @@ export async function rpcGetTransactionByHash(hash, opts = {}) {
 
 export async function rpcGetTransactionReceipt(hash, opts = {}) {
   return rpcCall("eth_getTransactionReceipt", [assertTxHash(hash)], opts);
+}
+
+export async function rpcGetBalance(address, blockTag = "latest", opts = {}) {
+  return rpcCall("eth_getBalance", [assertAddress(address), blockTag], opts);
+}
+
+export async function rpcGetTransactionCount(address, blockTag = "pending", opts = {}) {
+  return rpcCall("eth_getTransactionCount", [assertAddress(address), blockTag], opts);
+}
+
+export async function rpcGasPrice(opts = {}) {
+  return rpcCall("eth_gasPrice", [], opts);
+}
+
+export async function rpcEstimateGas(tx, opts = {}) {
+  return rpcCall("eth_estimateGas", [tx], opts);
+}
+
+// ------------------------
+// Hyperliquid Info endpoint
+// ------------------------
+
+export async function hyperliquidInfo(body, { url = DEFAULT_HYPERLIQUID_INFO_URL, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+  return fetchJson(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    timeoutMs,
+  });
+}
+
+export async function hyperliquidMetaAndAssetCtxs({ dex = "" } = {}) {
+  return hyperliquidInfo({ type: "metaAndAssetCtxs", dex });
 }
 
 // ------------------------
@@ -415,6 +449,51 @@ export function formatUnits(raw, decimals = 18, { precision = 6 } = {}) {
   } catch {
     return String(raw ?? "");
   }
+}
+
+export function toHexQuantity(value) {
+  try {
+    const n = typeof value === "bigint" ? value : BigInt(String(value ?? "0"));
+    if (n < 0n) throw new Error("Negative values are not allowed");
+    return `0x${n.toString(16)}`;
+  } catch {
+    throw new Error(`Invalid numeric value for hex quantity: ${value}`);
+  }
+}
+
+export function parseDecimalToUnits(amount, decimals = 18) {
+  const s = String(amount ?? "").trim();
+  if (!/^\d+(\.\d+)?$/.test(s)) throw new Error(`Invalid decimal amount: ${amount}`);
+  const [whole, frac = ""] = s.split(".");
+  if (frac.length > decimals) {
+    throw new Error(`Too many decimal places for ${decimals}-decimals asset`);
+  }
+  const w = BigInt(whole || "0");
+  const fracPadded = (frac + "0".repeat(decimals)).slice(0, decimals);
+  const f = BigInt(fracPadded || "0");
+  return w * 10n ** BigInt(decimals) + f;
+}
+
+export function fmtPx(x) {
+  const n = Number(x);
+  if (!Number.isFinite(n)) return String(x ?? "");
+  const abs = Math.abs(n);
+  const dp = abs >= 1000 ? 2 : abs >= 1 ? 4 : 6;
+  return n.toLocaleString(undefined, { maximumFractionDigits: dp, minimumFractionDigits: 0 });
+}
+
+export function pctChange(current, prev) {
+  const c = Number(current);
+  const p = Number(prev);
+  if (!Number.isFinite(c) || !Number.isFinite(p) || p === 0) return null;
+  return ((c - p) / p) * 100;
+}
+
+export function fmtPct(x) {
+  const n = Number(x);
+  if (!Number.isFinite(n)) return "";
+  const sign = n > 0 ? "+" : "";
+  return `${sign}${n.toFixed(2)}%`;
 }
 
 export function shortHash(hash) {

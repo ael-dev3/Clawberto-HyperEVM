@@ -4,14 +4,20 @@
 import {
   DEFAULT_CHAIN_ID,
   DEFAULT_RPC_URL,
+  assertAddress,
   normalizeAddress,
   normalizeTxHash,
   assertTxHash,
   hasEtherscanKey,
   rpcChainId,
   rpcBlockNumber,
+  rpcGetBalance,
+  rpcGetTransactionCount,
+  rpcGasPrice,
+  rpcEstimateGas,
   rpcGetTransactionByHash,
   rpcGetTransactionReceipt,
+  hyperliquidMetaAndAssetCtxs,
   hyperscanTransaction,
   hyperscanRecentTransactions,
   hyperscanAddressTransactions,
@@ -27,6 +33,11 @@ import {
   normalizeTokenTransfer,
   toDirection,
   formatUnits,
+  parseDecimalToUnits,
+  toHexQuantity,
+  fmtPx,
+  pctChange,
+  fmtPct,
   shortAddress,
   shortHash,
   txLink,
@@ -138,6 +149,11 @@ function extractTxHash(text) {
   return normalizeTxHash(text);
 }
 
+function extractCoin(text) {
+  const m = String(text ?? "").match(/\b[A-Z][A-Z0-9]{1,9}\b/);
+  return m ? m[0] : null;
+}
+
 function guessIntentFromNL(text) {
   const t = text.toLowerCase();
 
@@ -146,13 +162,16 @@ function guessIntentFromNL(text) {
 
   if (t.includes("chain id") || t.includes("rpc") || t.includes("network")) return { cmd: "network" };
   if (t.includes("recent tx") || t.includes("latest tx")) return { cmd: "recent" };
+  if (t.includes("quote") || t.includes("price")) return { cmd: "quote" };
+  if (/\b(transact|execution|execute|swap|send)\b/.test(t) || /\btrade(s|d|ing)?\b/.test(t)) return { cmd: "transact-help" };
+  if (t.includes("transfer plan") || t.includes("send plan")) return { cmd: "transfer-plan" };
   if (t.includes("all transactions") || t.includes("full history") || t.includes("check all")) return { cmd: "all" };
   if (t.includes("incoming") || t.includes("received")) return { cmd: "incoming" };
   if (t.includes("outgoing") || t.includes("sent from")) return { cmd: "outgoing" };
   if (t.includes("internal tx")) return { cmd: "internal" };
   if (t.includes("token transfer") || t.includes("erc20")) return { cmd: "tokens" };
   if (t.includes("who sent") || t.includes("airdrop") || t.includes("explain inflow")) return { cmd: "explain-inflow" };
-  if ((t.includes("tx ") || t.includes("transaction")) && t.includes("0x")) return { cmd: "tx" };
+  if ((t.includes("tx ") || t.includes("transaction")) && /0x[a-f0-9]{64}/.test(t)) return { cmd: "tx" };
   if (t.includes("history") || t.includes("transactions")) return { cmd: "history" };
   return { cmd: "history" };
 }
@@ -274,6 +293,128 @@ async function cmdRecent({ limit = 20 } = {}) {
     const n = normalizeNormalTx(r, { source: "hyperscan" });
     lines.push(`- ${fmtTs(n.timestamp)} | ${shortAddress(n.from)} -> ${shortAddress(n.to)} | ${shortHash(n.hash)} | ${formatUnits(n.valueWei, 18, { precision: 6 })} HYPE`);
   }
+  return lines.join("\n");
+}
+
+async function getPerpsTable() {
+  const [meta, ctxs] = await hyperliquidMetaAndAssetCtxs({ dex: "" });
+  const universe = meta?.universe ?? [];
+  return universe.map((u, i) => ({ u, c: ctxs?.[i] ?? {} }));
+}
+
+async function cmdQuote({ coin = "BTC" } = {}) {
+  const ccy = String(coin || "BTC").toUpperCase();
+  const rows = await getPerpsTable();
+  const row = rows.find((r) => String(r.u?.name || "").toUpperCase() === ccy);
+  if (!row) throw new Error(`Unknown Hyperliquid perp coin: ${ccy}`);
+
+  const c = row.c || {};
+  const chg = pctChange(c.markPx, c.prevDayPx);
+  const lines = [];
+  lines.push(`Hyperliquid ${ccy} quote (for HyperEVM execution context)`);
+  lines.push(`- mark: ${fmtPx(c.markPx)} | mid: ${c.midPx == null ? "n/a" : fmtPx(c.midPx)} | oracle: ${c.oraclePx == null ? "n/a" : fmtPx(c.oraclePx)}`);
+  lines.push(`- 24h: ${c.prevDayPx == null ? "n/a" : fmtPct(chg)} (prev ${fmtPx(c.prevDayPx)})`);
+  if (c.funding != null) lines.push(`- funding: ${Number(c.funding * 100).toFixed(4)}%`);
+  if (c.openInterest != null) lines.push(`- OI: ${Number(c.openInterest).toLocaleString(undefined, { maximumFractionDigits: 2 })}`);
+  if (c.dayNtlVlm != null) lines.push(`- 24h notional: ${Number(c.dayNtlVlm).toLocaleString(undefined, { maximumFractionDigits: 0 })}`);
+  lines.push("- note: use this with `hype transfer-plan` / swap playbook before execution");
+  return lines.join("\n");
+}
+
+function cmdTransactHelp() {
+  const lines = [];
+  lines.push("HyperEVM transaction execution playbook (non-custodial)");
+  lines.push(`- chain id: ${DEFAULT_CHAIN_ID}`);
+  lines.push(`- rpc: ${DEFAULT_RPC_URL}`);
+  lines.push("- pre-trade checks:");
+  lines.push("  - get market context first: `hype quote BTC` (or the dedicated hyperliquid skill)");
+  lines.push("  - verify wallet history/risk: `hype all <wallet>`");
+  lines.push("  - verify nonce/balance/gas: `hype transfer-plan <from> <to> --amount 0.01`");
+  lines.push("- signing model:");
+  lines.push("  - this skill does not store private keys");
+  lines.push("  - sign locally with wallet/custody tool (MetaMask, Ledger, Fireblocks, cast, etc)");
+  lines.push("- send path:");
+  lines.push("  1. build tx fields: to, value/data, nonce, gas, gasPrice, chainId=999");
+  lines.push("  2. sign offline/in-wallet");
+  lines.push("  3. broadcast signed tx via `eth_sendRawTransaction`");
+  lines.push("- safety:");
+  lines.push("  - never execute without fresh quote and slippage guardrails");
+  lines.push("  - prefer small test tx first");
+  lines.push("  - confirm receipt status before subsequent actions");
+  return lines.join("\n");
+}
+
+function splitFromToRef(parts) {
+  const tail = parts.filter(Boolean);
+  const addrIdx = [];
+  for (let i = 0; i < tail.length; i++) {
+    if (normalizeAddress(tail[i])) addrIdx.push(i);
+  }
+
+  if (addrIdx.length >= 2) {
+    return {
+      fromRef: tail[addrIdx[0]],
+      toAddress: tail[addrIdx[1]],
+    };
+  }
+
+  if (addrIdx.length === 1) {
+    const i = addrIdx[0];
+    return {
+      fromRef: tail.slice(0, i).join(" ").trim(),
+      toAddress: tail[i],
+    };
+  }
+
+  return { fromRef: tail.join(" ").trim(), toAddress: "" };
+}
+
+async function cmdTransferPlan({ fromRef, toAddress, amount }) {
+  const fromAddress = await resolveAddressInput(fromRef || "");
+  const to = assertAddress(toAddress);
+
+  if (amount == null) throw new Error('Usage: hype transfer-plan <from> <to> --amount 0.01');
+  const valueWei = parseDecimalToUnits(amount, 18);
+  const valueHex = toHexQuantity(valueWei);
+
+  const [balanceHex, nonceHex, gasPriceHex, estimatedGasHex] = await Promise.all([
+    rpcGetBalance(fromAddress, "latest"),
+    rpcGetTransactionCount(fromAddress, "pending"),
+    rpcGasPrice(),
+    rpcEstimateGas({ from: fromAddress, to, value: valueHex }).catch(() => "0x5208"), // fallback 21000
+  ]);
+
+  const balanceWei = BigInt(balanceHex || "0x0");
+  const nonce = Number.parseInt(nonceHex || "0x0", 16);
+  const gasPriceWei = BigInt(gasPriceHex || "0x0");
+  const gasLimit = BigInt(estimatedGasHex || "0x5208");
+  const estFeeWei = gasLimit * gasPriceWei;
+  const totalWei = valueWei + estFeeWei;
+  const enough = balanceWei >= totalWei;
+
+  const lines = [];
+  lines.push("HyperEVM transfer execution plan");
+  lines.push(`- from: ${fromAddress}`);
+  lines.push(`- to: ${to}`);
+  lines.push(`- amount: ${amount} HYPE (${valueWei.toString()} wei)`);
+  lines.push(`- nonce(pending): ${nonce}`);
+  lines.push(`- gas limit(est): ${gasLimit.toString()}`);
+  lines.push(`- gas price: ${formatUnits(gasPriceWei.toString(), 9, { precision: 3 })} gwei`);
+  lines.push(`- est fee: ${formatUnits(estFeeWei.toString(), 18, { precision: 8 })} HYPE`);
+  lines.push(`- wallet balance: ${formatUnits(balanceWei.toString(), 18, { precision: 8 })} HYPE`);
+  lines.push(`- funds check: ${enough ? "ok" : "INSUFFICIENT for amount+fee"}`);
+  lines.push("- unsigned tx template:");
+  lines.push(`  - chainId: ${DEFAULT_CHAIN_ID}`);
+  lines.push(`  - from: ${fromAddress}`);
+  lines.push(`  - to: ${to}`);
+  lines.push(`  - value: ${valueHex}`);
+  lines.push(`  - nonce: ${toHexQuantity(nonce)}`);
+  lines.push(`  - gas: ${toHexQuantity(gasLimit)}`);
+  lines.push(`  - gasPrice: ${toHexQuantity(gasPriceWei)}`);
+  lines.push("- cast example (local signing):");
+  lines.push(`  cast send --rpc-url ${DEFAULT_RPC_URL} --private-key $PK ${to} --value ${amount}ether`);
+  lines.push("- next step:");
+  lines.push("  - sign and broadcast once checks pass; then verify with `hype tx <hash>`");
   return lines.join("\n");
 }
 
@@ -524,6 +665,9 @@ function usage() {
     "Commands:",
     "  network",
     "  recent [--limit N]",
+    "  quote <coin>",
+    "  transact-help",
+    "  transfer-plan <from|label> <to> --amount <decimal>",
     "  history <address|label> [--limit N] [--source auto|hyperscan|etherscan]",
     "  incoming <address|label> [--limit N] [--source ...]",
     "  outgoing <address|label> [--limit N] [--source ...]",
@@ -550,7 +694,18 @@ async function runDeterministic(pref) {
   if (cmd === "help" || cmd === "usage") return usage();
   if (cmd === "network") return cmdNetwork();
   if (cmd === "recent") return cmdRecent({ limit });
+  if (cmd === "quote") return cmdQuote({ coin: args._[1] ?? "BTC" });
+  if (cmd === "transact-help") return cmdTransactHelp();
   if (cmd === "account") return cmdAccount(args);
+
+  if (cmd === "transfer-plan") {
+    const { fromRef, toAddress } = splitFromToRef(args._.slice(1));
+    return cmdTransferPlan({
+      fromRef,
+      toAddress,
+      amount: args.amount,
+    });
+  }
 
   if (cmd === "tx") return cmdTx({ hash: tx });
 
@@ -586,11 +741,21 @@ async function runNL(raw) {
 
   if (cmd === "network") return cmdNetwork();
   if (cmd === "recent") return cmdRecent({ limit: 20 });
+  if (cmd === "transact-help") return cmdTransactHelp();
+  if (cmd === "quote") return cmdQuote({ coin: extractCoin(raw) ?? "BTC" });
 
   const addr = extractAddress(raw);
   const hash = extractTxHash(raw);
 
   if (cmd === "tx") return cmdTx({ hash });
+  if (cmd === "transfer-plan") {
+    const found = [...raw.matchAll(/(?:HL:)?(0x[a-fA-F0-9]{40})/g)].map((m) => m[1]);
+    const fromRef = found.length >= 2 ? found[0] : "";
+    const toAddress = found.length >= 2 ? found[1] : found[0] || "";
+    const amountMatch = raw.match(/(?:amount|send|transfer|value)\s*(?:of\s*)?(\d+(?:\.\d+)?)/i) || raw.match(/\b(\d+(?:\.\d+)?)\s*(?:hype|eth)\b/i);
+    const amount = amountMatch ? amountMatch[1] : null;
+    return cmdTransferPlan({ fromRef, toAddress, amount });
+  }
 
   const resolved = await resolveAccountRef(addr || "");
   const address = resolved.address || (await resolveAddressInput(""));
@@ -617,6 +782,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(err?.stack || String(err));
+  console.error(err?.message || String(err));
   process.exit(1);
 });

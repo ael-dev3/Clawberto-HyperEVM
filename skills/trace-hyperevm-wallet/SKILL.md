@@ -1,11 +1,11 @@
 ---
 name: trace-hyperevm-wallet
-description: Read-only HyperEVM wallet tracing skill for transaction history, sender attribution, and transaction inspection. Use when users need to investigate what was sent to a wallet, by whom, and via which path (normal tx, internal tx, token transfer) on HyperEVM mainnet (chain id 999). Supports deterministic `hype ...` and `/hype ...` commands plus natural language, with Hyperscan (Blockscout API v2) as default and Etherscan V2 (`chainid=999`) as optional source.
+description: HyperEVM wallet tracing and execution-planning skill for transaction history, sender attribution, market context, and transaction preparation on HyperEVM mainnet (chain id 999). Use when users need to investigate what was sent to a wallet, obtain trade context, and prepare safe transaction execution steps (nonce/gas/fee/template) without handling private keys. Supports deterministic `hype ...` and `/hype ...` commands plus natural language, with Hyperscan (Blockscout API v2) as default and Etherscan V2 (`chainid=999`) as optional source.
 ---
 
-# Trace HyperEVM Wallet (read-only)
+# Trace HyperEVM Wallet
 
-Implement read-only wallet tracing for HyperEVM.
+Implement wallet tracing and transaction planning for HyperEVM.
 
 Network constants:
 - Chain ID: `999`
@@ -14,6 +14,7 @@ Network constants:
 Primary data sources:
 - Hyperscan Blockscout API v2: `https://www.hyperscan.com/api/v2`
 - Etherscan V2 (optional): `https://api.etherscan.io/v2/api` with `chainid=999`
+- Hyperliquid Info endpoint (market context): `https://api.hyperliquid.xyz/info`
 
 ## Supported input styles
 
@@ -37,6 +38,11 @@ Parse `/hype` and `hype` first (deterministic). If no prefix, fall back to inten
 Network:
 - `network`: verify RPC chain id and latest block
 - `recent [--limit N]`: recent HyperEVM txs (global feed)
+- `quote <coin>`: quick Hyperliquid perp context for execution planning
+
+Execution planning (non-custodial):
+- `transact-help`: execution checklist and safety flow
+- `transfer-plan <from|label> <to> --amount <decimal>`: nonce/gas/fee checks + unsigned tx template + local signing command hints
 
 Address history:
 - `history <HL:0x..|0x..|label> [--limit N] [--source hyperscan|etherscan|auto]`
@@ -65,6 +71,11 @@ Always distinguish these classes:
 
 For sender attribution, compare all three classes before concluding.
 
+Execution boundary:
+- This skill prepares and validates transaction plans.
+- This skill does not store private keys.
+- Signing and broadcast must happen in external wallet/custody tooling.
+
 ## Source selection guidance
 
 Prefer:
@@ -82,6 +93,7 @@ Use Etherscan V2 when:
 - `references/etherscan-v2-hyperevm.md`: Etherscan V2 free-tier + HyperEVM notes
 - `references/hyperscan-blockscout-hyperevm.md`: Hyperscan endpoint mapping
 - `references/transaction-history-playbook.md`: practical investigation workflow
+- `references/hyperevm-transaction-execution.md`: transaction execution and safety runbook
 
 ## Output rules
 
@@ -94,6 +106,8 @@ Use Etherscan V2 when:
 
 ```bash
 node skills/trace-hyperevm-wallet/scripts/hyperevm_scan_chat.mjs "hype network"
+node skills/trace-hyperevm-wallet/scripts/hyperevm_scan_chat.mjs "hype quote BTC"
 node skills/trace-hyperevm-wallet/scripts/hyperevm_scan_chat.mjs "hype history HL:0x..."
+node skills/trace-hyperevm-wallet/scripts/hyperevm_scan_chat.mjs "hype transfer-plan HL:0xFrom... HL:0xTo... --amount 0.01"
 node skills/trace-hyperevm-wallet/scripts/hyperevm_scan_chat.mjs "hype tx 0x..."
 ```
