@@ -51,6 +51,9 @@ import {
   extractEvmAddress,
 } from "./hyperevm_scan_config.mjs";
 
+const HYPEREVM_NATIVE_DECIMALS = 18;
+const HYPEREVM_WEI_PER_HYPE = 10n ** BigInt(HYPEREVM_NATIVE_DECIMALS);
+
 function stripPrefix(raw) {
   const t = raw.trim();
   const lower = t.toLowerCase();
@@ -129,6 +132,25 @@ function truncatedHashCandidate(value) {
   return raw;
 }
 
+function normalizeWei(raw) {
+  const value = String(raw ?? "0").trim();
+  if (!value) return 0n;
+  try {
+    return BigInt(value);
+  } catch {
+    return 0n;
+  }
+}
+
+function weiToHype(rawWei, { precision = 18 } = {}) {
+  return formatUnits(normalizeWei(rawWei).toString(), HYPEREVM_NATIVE_DECIMALS, { precision });
+}
+
+function formatWeiConversion(rawWei) {
+  const wei = normalizeWei(rawWei);
+  return `- 1 HYPE = ${HYPEREVM_WEI_PER_HYPE.toString()} wei (10^18)\n- ${wei.toString()} wei = ${weiToHype(wei.toString(), { precision: 18 })} HYPE`;
+}
+
 function formatNormalLine(item, focusAddress) {
   const dir = toDirection({ from: item.from, to: item.to, address: focusAddress });
   const value = formatUnits(item.valueWei, 18, { precision: 6 });
@@ -178,6 +200,7 @@ function guessIntentFromNL(text) {
   if (t.includes("chain id") || t.includes("rpc") || t.includes("network")) return { cmd: "network" };
   if (t.includes("recent tx") || t.includes("latest tx")) return { cmd: "recent" };
   if (t.includes("quote") || t.includes("price")) return { cmd: "quote" };
+  if (t.includes("native balance") || t.includes("wallet balance") || t.includes("hype balance")) return { cmd: "balance" };
   if (/\b(position|positions|pnl|p\/l|margin)\b/.test(t)) return { cmd: "positions" };
   if (/\b(transact|execution|execute|swap|send)\b/.test(t) || /\btrade(s|d|ing)?\b/.test(t)) return { cmd: "transact-help" };
   if (t.includes("transfer plan") || t.includes("send plan")) return { cmd: "transfer-plan" };
@@ -295,6 +318,19 @@ async function cmdNetwork() {
   lines.push(`- rpc chain id: ${cid.decimal} (${cid.hex})${String(cid.decimal) === String(DEFAULT_CHAIN_ID) ? "" : " [MISMATCH]"}`);
   lines.push(`- latest block: ${block.decimal} (${block.hex})`);
   lines.push(`- etherscan key configured: ${hasEtherscanKey() ? "yes" : "no"}`);
+  return lines.join("\n");
+}
+
+async function cmdBalance({ address }) {
+  const raw = await rpcGetBalance(address, "latest", { rpcUrl: DEFAULT_RPC_URL });
+  const wei = normalizeWei(raw);
+  const lines = [];
+  lines.push("HyperEVM native balance");
+  lines.push(`- address: ${renderAddress(address)}`);
+  lines.push(`- rpc: ${DEFAULT_RPC_URL}`);
+  lines.push(`- balance: ${weiToHype(wei.toString(), { precision: 18 })} HYPE`);
+  lines.push(`- balance (wei): ${wei.toString()} wei`);
+  lines.push(formatWeiConversion(wei));
   return lines.join("\n");
 }
 
@@ -798,6 +834,7 @@ function usage() {
     "  positions <address|label>",
     "  transact-help",
     "  transfer-plan <from|label> <to> --amount <decimal>",
+    "  balance <address|label>",
     "  history <address|label> [--limit N] [--source auto|hyperscan|etherscan]",
     "  incoming <address|label> [--limit N] [--source ...]",
     "  outgoing <address|label> [--limit N] [--source ...]",
@@ -829,6 +866,10 @@ async function runDeterministic(pref) {
   if (cmd === "network") return cmdNetwork();
   if (cmd === "recent") return cmdRecent({ limit });
   if (cmd === "quote") return cmdQuote({ coin: args._[1] ?? "BTC" });
+  if (cmd === "balance") {
+    const address = await resolveAddressInput(ref);
+    return cmdBalance({ address });
+  }
   if (cmd === "positions") {
     const address = await resolveAddressInput(ref);
     return cmdPositions({ address });
@@ -887,6 +928,11 @@ async function runNL(raw) {
   const labelGuess = addr
     ? ""
     : (raw.match(/\b(?:for|of)\s+(.+)$/i)?.[1] ?? "").trim();
+
+  if (cmd === "balance") {
+    const address = await resolveAddressInput(addr || labelGuess || "");
+    return cmdBalance({ address });
+  }
 
   if (cmd === "tx") return cmdTx({ hash });
   if (cmd === "transfer-plan") {

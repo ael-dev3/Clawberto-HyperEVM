@@ -7,6 +7,7 @@ Use this sequence to answer "what was sent to me and by whom?"
 - Confirm chain id is `999`.
 - Confirm RPC is reachable: `https://rpc.hyperliquid.xyz/evm`.
 - Confirm target address format is valid (`0x...` 40 hex chars).
+- Confirm native unit convention: `1 HYPE = 1e18 wei` (this is what all HYPE↔wei conversions in this playbook use).
 
 ## Step 2: Pull normal tx history
 

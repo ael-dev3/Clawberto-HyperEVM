@@ -78,6 +78,10 @@ chainid=999
 apikey=<key>
 ```
 
+Returned value is raw wei. Convert with:
+- `HYPE = WEI / 10^18`
+- `WEI = HYPE * 10^18`
+
 ## Common operational guards
 
 - Handle `status=0` with `result=No transactions found` as empty data, not an error.

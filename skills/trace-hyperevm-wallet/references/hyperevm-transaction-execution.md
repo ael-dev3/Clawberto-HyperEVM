@@ -36,6 +36,7 @@ Required tx fields:
 - `nonce` (pending)
 - `gas` (estimated + safety buffer if needed)
 - `gasPrice` (or EIP-1559 fields if supported in your tooling)
+- Unit rule: `1 HYPE = 1,000,000,000,000,000,000 wei (10^18)`
 
 Recommended workflow:
 1. Build unsigned tx object.

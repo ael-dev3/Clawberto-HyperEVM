@@ -41,3 +41,5 @@ Use all three classes before making sender claims:
 - Token transfers
 
 Native balance deltas help reconcile gas costs and net flow.
+- Native HYPE is `10^18 wei`, so any reconciliation done in wei needs that divider.
+

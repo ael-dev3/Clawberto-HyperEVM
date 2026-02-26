@@ -48,6 +48,7 @@ Execution planning (non-custodial):
 
 Address history:
 - `history <HL:0x..|0x..|label> [--limit N] [--source hyperscan|etherscan|auto]`
+- `balance <HL:0x..|0x..|label>`: native balance in HYPE + wei + conversion check
 - `incoming <...> [--limit N] [--source ...]`
 - `outgoing <...> [--limit N] [--source ...]`
 - `internal <...> [--limit N] [--source ...]`
@@ -108,12 +109,19 @@ Use Etherscan V2 when:
 - Add explicit uncertainty markers when attribution is not definitive.
 - Avoid implying ownership/identity without a labeled source.
 
+### Native unit rule (important)
+
+- HyperEVM native unit is `HYPE`.
+- `1 HYPE = 1,000,000,000,000,000,000 wei` (`10^18`).
+- All displayed native balances/amounts are converted with this rule.
+
 ## Quick manual tests
 
 ```bash
 node skills/trace-hyperevm-wallet/scripts/hyperevm_scan_chat.mjs "hype network"
 node skills/trace-hyperevm-wallet/scripts/hyperevm_scan_chat.mjs "hype quote BTC"
 node skills/trace-hyperevm-wallet/scripts/hyperevm_scan_chat.mjs "hype positions HL:0x..."
+node skills/trace-hyperevm-wallet/scripts/hyperevm_scan_chat.mjs "hype balance HL:0x..."
 node skills/trace-hyperevm-wallet/scripts/hyperevm_scan_chat.mjs "hype history HL:0x..."
 node skills/trace-hyperevm-wallet/scripts/hyperevm_scan_chat.mjs "hype transfer-plan HL:0xFrom... HL:0xTo... --amount 0.01"
 node skills/trace-hyperevm-wallet/scripts/hyperevm_scan_chat.mjs "hype tx 0x..."

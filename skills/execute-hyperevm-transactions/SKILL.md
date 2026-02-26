@@ -59,4 +59,9 @@ node skills/execute-hyperevm-transactions/scripts/hyperevm_execute_chat.mjs "hex
 # live execution (explicit):
 # export HYPEREVM_EXEC_PRIVATE_KEY=0x...
 node skills/execute-hyperevm-transactions/scripts/hyperevm_execute_chat.mjs "hexec send-native HL:0xFrom... HL:0xTo... --amount 0.01 --broadcast --yes SEND"
+
+# Native unit sanity check:
+cast balance --ether https://rpc.hyperliquid.xyz/evm 0x...
+# 1 HYPE = 1e18 wei
 ```
+
